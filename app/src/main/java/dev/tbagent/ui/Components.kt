@@ -57,16 +57,16 @@ fun statusColor(s: SynthesisStatus): Color = when (s) {
 }
 
 fun statusLabel(s: SynthesisStatus): String = when (s) {
-    SynthesisStatus.REQUESTED -> "solicitado"
-    SynthesisStatus.SYNTHESIZING -> "sintetizando…"
-    SynthesisStatus.SYNTHESIS_COMPLETED -> "síntesis completa"
-    SynthesisStatus.INTERRUPTED -> "interrumpido"
+    SynthesisStatus.REQUESTED -> "requested"
+    SynthesisStatus.SYNTHESIZING -> "synthesizing…"
+    SynthesisStatus.SYNTHESIS_COMPLETED -> "synthesis completed"
+    SynthesisStatus.INTERRUPTED -> "interrupted"
     SynthesisStatus.ERROR -> "error"
 }
 
 fun callerLabel(u: Utterance, ownPackage: String): String = when {
     u.isFromTalkBack -> "TalkBack"
-    u.callerPackage == ownPackage -> "esta app"
+    u.callerPackage == ownPackage -> "this app"
     else -> u.callerPackage ?: "uid ${u.callerUid}"
 }
 
@@ -83,7 +83,7 @@ fun UtteranceRow(u: Utterance, ownPackage: String, offsetFromMs: Long? = null) {
                 "${u.language}-${u.country} · ${statusLabel(u.status)}",
             color = statusColor(u.status),
         )
-        Text("“${u.text}”", style = MaterialTheme.typography.bodyMedium)
+        Text(if (u.text.isEmpty()) "(empty utterance)" else "“${u.text}”", style = MaterialTheme.typography.bodyMedium)
         if (u.spans.isNotEmpty()) Mono("spans: ${u.spans.joinToString("; ")}")
     }
 }

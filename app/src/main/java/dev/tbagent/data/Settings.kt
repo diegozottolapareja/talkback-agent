@@ -51,6 +51,11 @@ class Settings(context: Context) {
         get() = p.getBoolean("use_ai", false)
         set(v) = p.edit().putBoolean("use_ai", v).apply()
 
+    /** Language used by the microphone button (BCP-47). */
+    var micLanguage: String
+        get() = p.getString("mic_language", "en-US") ?: "en-US"
+        set(v) = p.edit().putString("mic_language", v).apply()
+
     fun plannedAudioMs(textLength: Int): Long =
         if (fastMode) 0 else (textLength.toLong() * msPerChar).coerceIn(250, 15_000)
 }

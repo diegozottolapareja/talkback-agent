@@ -6,18 +6,16 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import dev.tbagent.Graph
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,14 +23,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import dev.tbagent.Graph
 import dev.tbagent.env.EnvironmentInspector
 import dev.tbagent.env.SetupStatus
 import kotlinx.coroutines.delay
 
+/**
+ * Android does not allow an app to grant itself these settings with a popup (accessibility service,
+ * default TTS engine, restricted settings). This screen shows what is missing and opens the right page.
+ * No runtime permission is needed: voice input uses the system speech dialog.
+ */
 @Composable
 fun SetupScreen() {
     val ctx = LocalContext.current
@@ -44,46 +51,55 @@ fun SetupScreen() {
         }
     }
     val st = s ?: return
+    val required = listOf(st.ourEngineSelected, st.controllerEnabled && st.controllerConnected, st.talkBackEnabled, st.chromeInstalled)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
-        Check(
-            "1. Motor TTS \"TalkBack Capture (TTS)\" como preferido",
-            st.ourEngineSelected,
-            "Actual: ${st.defaultEngine ?: "desconocido"}. Ajustes → Accesibilidad → TalkBack → Configuración → " +
-                "Texto a voz → Motor preferido (o Ajustes → Administración general → Salida de texto a voz).",
-        ) {
-            OutlinedButton(onClick = { openTtsSettings(ctx) }) { Text("Abrir ajustes de texto a voz") }
-        }
-        Check(
-            "2. Servicio \"TalkBack Agent Controller\" activo",
-            st.controllerEnabled && st.controllerConnected,
-            if (st.controllerEnabled && !st.controllerConnected) "Habilitado pero no conectado todavía; esperá unos segundos o reactivalo."
-            else "Ajustes → Accesibilidad → Apps instaladas → TalkBack Agent Controller. Si aparece \"Ajuste restringido\", " +
-                "abrí Info de la app → ⋮ → \"Permitir ajustes restringidos\" y volvé a intentar.",
-        ) {
-            OutlinedButton(onClick = { open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Abrir ajustes de accesibilidad") }
-            OutlinedButton(onClick = {
-                open(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
-            }) { Text("Abrir info de la app") }
-        }
-        Check(
-            "3. TalkBack activo",
-            st.talkBackEnabled,
-            "Paquete: ${st.talkBackVersion ?: "no encontrado"}. Exploración táctil: ${st.touchExploration}. " +
-                "Tip: configurá el atajo de teclas de volumen para encender/apagar TalkBack rápido.",
-        ) {
-            OutlinedButton(onClick = { open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Abrir ajustes de accesibilidad") }
-        }
-        Check("4. Chrome instalado", st.chromeInstalled, st.chromeVersion ?: "Instalá Google Chrome desde Play Store.") {}
-
-        AiSection()
-
-        Section("Al terminar las pruebas") {
+        Section(if (required.all { it }) "Setup complete" else "Setup: ${required.count { it }} of ${required.size} done") {
             Text(
-                "Volvé a seleccionar el motor de Samsung o Google como preferido. Mientras \"TalkBack Capture\" esté " +
-                    "seleccionado, la voz del teléfono depende del eco de esta app.",
+                "Android does not let an app grant these itself, so each item opens its settings page. " +
+                    "This screen updates automatically when you come back.",
             )
         }
-        Section("Entorno") {
+        Check(
+            "1. Select \"TalkBack Capture (TTS)\" as the preferred TTS engine",
+            st.ourEngineSelected,
+            "Current: ${st.defaultEngine ?: "unknown"}. Settings → General management → Language → Text-to-speech → Preferred engine.",
+        ) {
+            OutlinedButton(onClick = { openTtsSettings(ctx) }) { Text("Open text-to-speech settings") }
+        }
+        Check(
+            "2. Enable the \"TalkBack Agent Controller\" accessibility service",
+            st.controllerEnabled && st.controllerConnected,
+            if (st.controllerEnabled && !st.controllerConnected) "Enabled but not connected yet; wait a few seconds or toggle it off and on."
+            else "Settings → Accessibility → Installed apps → TalkBack Agent Controller. If it says \"Restricted setting\": " +
+                "open App info → ⋮ (top right) → Allow restricted settings, then try again.",
+        ) {
+            OutlinedButton(onClick = { open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Open accessibility settings") }
+            OutlinedButton(onClick = {
+                open(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+            }) { Text("Open app info (allow restricted settings)") }
+        }
+        Check(
+            "3. Turn TalkBack on",
+            st.talkBackEnabled,
+            "Package: ${st.talkBackVersion ?: "not found"}. Touch exploration: ${st.touchExploration}. " +
+                "Tip: set the volume-keys shortcut to switch TalkBack on and off quickly.",
+        ) {
+            OutlinedButton(onClick = { open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Open accessibility settings") }
+        }
+        Check("4. Chrome installed", st.chromeInstalled, st.chromeVersion ?: "Install Google Chrome from the Play Store.") {}
+
+        Section("Voice input") {
+            Text("No permission is needed: the microphone button on the Run tab opens the system speech dialog.")
+        }
+        AiSection()
+
+        Section("When you finish testing") {
+            Text(
+                "Select the Samsung or Google engine as the preferred TTS engine again. While \"TalkBack Capture\" is " +
+                    "selected, the phone's voice depends on this app's audible echo.",
+            )
+        }
+        Section("Environment") {
             EnvironmentInspector.environmentMap(ctx).forEach { (k, v) -> KeyValue(k, v) }
         }
     }
@@ -92,21 +108,10 @@ fun SetupScreen() {
 @Composable
 private fun Check(title: String, ok: Boolean, detail: String, actions: @Composable () -> Unit) {
     Section(title) {
-        Text(if (ok) "✓ Listo" else "✗ Pendiente", color = if (ok) Ok else Bad, fontWeight = FontWeight.Bold)
+        Text(if (ok) "✓ Done" else "✗ Pending", color = if (ok) Ok else Bad, fontWeight = FontWeight.Bold)
         Text(detail)
         actions()
     }
-}
-
-private fun openTtsSettings(ctx: Context) {
-    if (!open(ctx, Intent("com.android.settings.TTS_SETTINGS"))) open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-}
-
-private fun open(ctx: Context, intent: Intent): Boolean = try {
-    ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    true
-} catch (_: ActivityNotFoundException) {
-    false
 }
 
 @Composable
@@ -114,10 +119,10 @@ private fun AiSection() {
     var key by remember { mutableStateOf(Graph.settings.openAiKey) }
     var model by remember { mutableStateOf(Graph.settings.openAiModel) }
     var use by remember { mutableStateOf(Graph.settings.useAi) }
-    Section("IA (OpenAI) para interpretar instrucciones") {
+    Section("AI (OpenAI): interpret instructions and evaluate results") {
         Text(
-            "La clave se escribe acá, queda solo en este teléfono y nunca se sube al repositorio. " +
-                "Poné un límite de gasto en tu cuenta de OpenAI.",
+            "The key is typed here, stays only on this phone and is never uploaded to the repository. " +
+                "Set a spending limit in your OpenAI account.",
         )
         OutlinedTextField(
             value = key,
@@ -131,13 +136,24 @@ private fun AiSection() {
         OutlinedTextField(
             value = model,
             onValueChange = { model = it; Graph.settings.openAiModel = it },
-            label = { Text("Modelo") },
+            label = { Text("Model") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
-        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(checked = use, onCheckedChange = { use = it; Graph.settings.useAi = it })
-            Text("  Usar IA al tocar Run")
+            Text("  Use AI on Run (interpret the request and evaluate the result)")
         }
     }
+}
+
+private fun openTtsSettings(ctx: Context) {
+    if (!open(ctx, Intent("com.android.settings.TTS_SETTINGS"))) open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+}
+
+private fun open(ctx: Context, intent: Intent): Boolean = try {
+    ctx.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    true
+} catch (_: ActivityNotFoundException) {
+    false
 }

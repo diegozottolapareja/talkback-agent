@@ -117,11 +117,11 @@ class ControllerService : AccessibilityService() {
                         val bmp = Bitmap.wrapHardwareBuffer(hw, screenshot.colorSpace)
                             ?.copy(Bitmap.Config.ARGB_8888, false)
                         hw.close()
-                        if (cont.isActive) cont.resume(bmp to if (bmp == null) "no se pudo convertir el buffer" else null)
+                        if (cont.isActive) cont.resume(bmp to if (bmp == null) "could not convert the screenshot buffer" else null)
                     }
 
                     override fun onFailure(errorCode: Int) {
-                        if (cont.isActive) cont.resume(null to "takeScreenshot falló (código $errorCode)")
+                        if (cont.isActive) cont.resume(null to "takeScreenshot failed (code $errorCode)")
                     }
                 })
             }
@@ -132,7 +132,7 @@ class ControllerService : AccessibilityService() {
                 file.parentFile?.mkdirs()
                 file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 null
-            }.getOrElse { "no se pudo guardar el screenshot: ${it.message}" }
+            }.getOrElse { "could not save the screenshot: ${it.message}" }
         }
     }
 

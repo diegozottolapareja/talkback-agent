@@ -71,7 +71,7 @@ object ResultAssembler {
             reasons += "${it.strategy}: ${describe(it.status)}"
         }
         if (captured.isEmpty()) {
-            if (strategies.none { it.status != CaptureStatus.NOT_RUN }) reasons += "No se ejecutó ninguna estrategia."
+            if (strategies.none { it.status != CaptureStatus.NOT_RUN }) reasons += "No strategy was run."
             return Verdict.INCONCLUSIVE to reasons
         }
         if (expectation == null) return Verdict.OBSERVED to reasons
@@ -80,22 +80,33 @@ object ResultAssembler {
     }
 
     fun describe(status: CaptureStatus): String = when (status) {
-        CaptureStatus.CAPTURED -> "anuncio capturado y foco confirmado en el elemento"
-        CaptureStatus.CAPTURED_FOCUS_UNCONFIRMED -> "TalkBack habló, pero no se pudo confirmar que el foco esté en el elemento"
-        CaptureStatus.NO_SPEECH_CAPTURED -> "el motor de captura no recibió texto de TalkBack (¿TalkBack activo? ¿motor TTS seleccionado?)"
-        CaptureStatus.NAVIGATION_FAILED -> "la acción de navegación fue rechazada o no llegó al elemento"
-        CaptureStatus.NOT_RUN -> "no ejecutada"
+        CaptureStatus.CAPTURED -> "announcement captured and focus confirmed on the element"
+        CaptureStatus.CAPTURED_FOCUS_UNCONFIRMED -> "TalkBack spoke, but focus on the target element could not be confirmed"
+        CaptureStatus.NO_SPEECH_CAPTURED -> "our TTS engine received no text from TalkBack (is TalkBack on? is the capture engine selected?)"
+        CaptureStatus.NAVIGATION_FAILED -> "the navigation action was rejected or never reached the element"
+        CaptureStatus.NOT_RUN -> "not run"
     }
 }
 
 /** Chooses where Linear Navigation starts: the closest previous node TalkBack would stop on. */
 object LinearPlanner {
-    fun anchorFor(nodes: List<NodeSnapshot>, target: NodeSnapshot): NodeSnapshot? =
+    private fun speakable(n: NodeSnapshot) =
+        n.isInteractive || !n.text.isNullOrBlank() || !n.contentDescription.isNullOrBlank()
+
+    /** Nodes before the target that TalkBack would stop on, closest first. */
+    fun anchorsFor(nodes: List<NodeSnapshot>, target: NodeSnapshot, limit: Int): List<NodeSnapshot> =
         nodes.asSequence()
             .filter { it.order < target.order }
             .filter { it.className != "android.webkit.WebView" }
             .filter { !it.isAncestorOf(target) && !target.isAncestorOf(it) }
-            .filter { it.isVisibleToUser && !it.bounds.isEmpty }
-            .filter { it.isInteractive || !it.text.isNullOrBlank() || !it.contentDescription.isNullOrBlank() }
-            .maxByOrNull { it.order }
+            // No visibility filter: off-screen neighbours are valid anchors (they get scrolled into view).
+            // Filtering them out picked a node far above the target on long pages.
+            .filter { speakable(it) }
+            .sortedByDescending { it.order }
+            .take(limit)
+            .toList()
+
+    /** How many speakable nodes lie strictly between the anchor and the target, plus the target itself. */
+    fun stepsBetween(nodes: List<NodeSnapshot>, anchor: NodeSnapshot, target: NodeSnapshot): Int =
+        nodes.count { it.order > anchor.order && it.order <= target.order && speakable(it) && it.className != "android.webkit.WebView" }
 }

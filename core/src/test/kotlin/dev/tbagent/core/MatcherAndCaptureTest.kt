@@ -72,7 +72,7 @@ class MatcherTest {
 
     @Test fun anchorIsPreviousSpeakableNode() {
         val target = page[2]
-        assertEquals("0.1", LinearPlanner.anchorFor(page, target)?.path)
+        assertEquals("0.1", LinearPlanner.anchorsFor(page, target, 1).firstOrNull()?.path)
     }
 
     @Test fun identifierWords() {
@@ -135,5 +135,40 @@ class CaptureTest {
         assertEquals(CaptureStatus.NO_SPEECH_CAPTURED, ResultAssembler.strategyStatus(true, true, 0))
         assertEquals(CaptureStatus.CAPTURED, ResultAssembler.strategyStatus(true, true, 1))
         assertEquals(CaptureStatus.CAPTURED_FOCUS_UNCONFIRMED, ResultAssembler.strategyStatus(true, false, 1))
+    }
+}
+
+class LinearPlannerTest {
+    private fun n(order: Int, text: String? = "x", editable: Boolean = false) = NodeSnapshot(
+        path = "0.$order", order = order, className = "android.view.View", text = text, isEditable = editable,
+        bounds = Bounds(0, order * 10, 100, order * 10 + 9),
+    )
+
+    private val nodes = (0..9).map { n(it) }
+
+    @Test fun anchorsAreClosestFirst() {
+        val a = LinearPlanner.anchorsFor(nodes, nodes[6], 3)
+        assertEquals(listOf(5, 4, 3), a.map { it.order })
+    }
+
+    @Test fun noAnchorsForFirstNode() {
+        assertTrue(LinearPlanner.anchorsFor(nodes, nodes[0], 3).isEmpty())
+    }
+
+    @Test fun stepsBetweenCountsSpeakableNodes() {
+        assertEquals(3, LinearPlanner.stepsBetween(nodes, nodes[3], nodes[6]))
+    }
+}
+
+class OffScreenAnchorTest {
+    @Test fun offScreenNeighbourIsTheClosestAnchor() {
+        fun node(order: Int, visible: Boolean) = NodeSnapshot(
+            path = "0.$order", order = order, className = "android.view.View", text = "n$order",
+            isVisibleToUser = visible, bounds = Bounds(0, order * 10, 100, order * 10 + 9),
+        )
+        // Long page: only nodes 0..2 are on screen, the target is node 40.
+        val nodes = (0..40).map { node(it, visible = it <= 2) }
+        val anchor = LinearPlanner.anchorsFor(nodes, nodes[40], 3).first()
+        assertEquals(39, anchor.order)
     }
 }

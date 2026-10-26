@@ -73,10 +73,10 @@ class Orchestrator(private val ctx: Context) {
             _state.value = try {
                 execute(spec)
             } catch (c: CancellationException) {
-                RunState.Failed("Ejecución cancelada.")
+                RunState.Failed("Run cancelled.")
             } catch (t: Throwable) {
                 Log.e(TAG, "run failed", t)
-                RunState.Failed("Error inesperado: ${t.javaClass.simpleName}: ${t.message}")
+                RunState.Failed("Unexpected error: ${t.javaClass.simpleName}: ${t.message}")
             }
             bringAppToFront()
         }
@@ -103,34 +103,34 @@ class Orchestrator(private val ctx: Context) {
 
         val setup = EnvironmentInspector.status(ctx)
         val problems = mutableListOf<String>()
-        if (!setup.talkBackEnabled) problems += "TalkBack no está activo."
+        if (!setup.talkBackEnabled) problems += "TalkBack is not enabled."
         if (!setup.ourEngineSelected) {
-            problems += "El motor TTS preferido no es 'TalkBack Capture' (actual: ${setup.defaultEngine ?: "desconocido"})."
+            problems += "The preferred TTS engine is not 'TalkBack Capture' (current: ${setup.defaultEngine ?: "unknown"})."
         }
         val service = ControllerService.instance
-            ?: return RunState.Failed("El servicio 'TalkBack Agent Controller' no está activo. Activalo en la pestaña Setup.")
-        if (!setup.chromeInstalled) return RunState.Failed("Chrome no está instalado.")
+            ?: return RunState.Failed("The 'TalkBack Agent Controller' service is not active. Enable it in the Setup tab.")
+        if (!setup.chromeInstalled) return RunState.Failed("Chrome is not installed.")
 
-        step("Abriendo Chrome: ${spec.url}")
+        step("Opening Chrome: ${spec.url}")
         openInChrome(spec.url)
 
-        step("Esperando que cargue la página…")
+        step("Waiting for the page to load…")
         val page = waitForPage(service, spec.url)
             ?: return RunState.Failed(
-                "No se detectó contenido web de Chrome en ${PAGE_TIMEOUT_MS / 1000} s. " +
-                    "¿Chrome mostró una pantalla de bienvenida o de inicio de sesión?",
+                "No Chrome web content detected within ${PAGE_TIMEOUT_MS / 1000} s. " +
+                    "Did Chrome show a welcome or sign-in screen?",
             )
         var captured = page.second
         val observedUrl = service.chromeRoot()?.let { service.chromeUrlBarText(it) }
 
-        step("Buscando \"${spec.target.name}\" (${captured.snapshots.size} nodos)…")
+        step("Looking for \"${spec.target.name}\" (${captured.snapshots.size} nodes)…")
         var decision = decide(spec, captured.snapshots)
         var scrolls = 0
         while (decision == MatchDecision.NotFound && scrolls < MAX_SCROLLS) {
             val web = NodeSnapshots.findWebView(service.chromeRoot() ?: break) ?: break
             if (!web.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) break
             scrolls++
-            step("No encontrado; scroll $scrolls/$MAX_SCROLLS…")
+            step("Not found; scrolling $scrolls/$MAX_SCROLLS…")
             delay(900)
             captured = NodeSnapshots.capture(NodeSnapshots.findWebView(service.chromeRoot() ?: break) ?: break)
             decision = decide(spec, captured.snapshots)
@@ -139,21 +139,21 @@ class Orchestrator(private val ctx: Context) {
         val candidate = when (decision) {
             is MatchDecision.Unique -> decision.candidate
             is MatchDecision.Ambiguous -> {
-                step("Varios elementos coinciden; se necesita elegir.")
+                step("Several elements match; please choose one.")
                 return RunState.NeedsSelection(spec, decision.candidates)
             }
             MatchDecision.NotFound -> {
                 val names = captured.snapshots.filter { it.isInteractive }
                     .map { ElementMatcher.accessibleName(it) }.filter { it.isNotBlank() }.distinct().take(15)
                 return RunState.Failed(
-                    "No encontré \"${spec.target.name}\". Elementos interactivos visibles: " +
-                        names.joinToString(" · ").ifEmpty { "(ninguno)" },
+                    "Could not find \"${spec.target.name}\". Interactive elements seen: " +
+                        names.joinToString(" · ").ifEmpty { "(none)" },
                 )
             }
         }
         val targetNode = captured.nodes[candidate.node.path]
-            ?: return RunState.Failed("El nodo encontrado ya no existe en el árbol.")
-        step("Elemento: ${candidate.role} \"${candidate.accessibleName}\" (campo ${candidate.matchedField})")
+            ?: return RunState.Failed("The matched node no longer exists in the tree.")
+        step("Element: ${candidate.role} \"${candidate.accessibleName}\" (matched on ${candidate.matchedField})")
 
         val results = spec.strategies.map { strategy ->
             when (strategy) {
@@ -163,11 +163,11 @@ class Orchestrator(private val ctx: Context) {
         }
 
         if (!Graph.settings.captureValidated) {
-            problems += "El canal de captura todavía no fue validado en este dispositivo (Diagnóstico → Milestone 1)."
+            problems += "The capture channel has not been marked as validated on this device (Diagnostics tab)."
         }
         var (verdict, reasons) = ResultAssembler.verdict(results, spec.expectation, problems)
         if (!Graph.settings.captureValidated && verdict != Verdict.INCONCLUSIVE) {
-            reasons = reasons + "Veredicto ${verdict.name} rebajado a INCONCLUSIVE hasta validar la captura."
+            reasons = reasons + "Verdict ${verdict.name} downgraded to INCONCLUSIVE until the capture channel is validated."
             verdict = Verdict.INCONCLUSIVE
         }
 
@@ -187,7 +187,7 @@ class Orchestrator(private val ctx: Context) {
             environment = EnvironmentInspector.environmentMap(ctx),
         )
         val file = Graph.runStore.save(result)
-        step("Listo: ${verdict.name}")
+        step("Done: ${verdict.name}")
         return RunState.Finished(result, file)
     }
 
@@ -208,7 +208,7 @@ class Orchestrator(private val ctx: Context) {
         dir: File,
         spec: RunSpec,
     ): StrategyResult {
-        step("Direct Focus: preparando…")
+        step("Direct Focus: preparing…")
         val notes = mutableListOf<String>()
         ensureOnScreen(target, notes)
         clearFocusIfOn(service, target)
@@ -218,19 +218,24 @@ class Orchestrator(private val ctx: Context) {
         val at = SystemClock.elapsedRealtime()
         val wall = System.currentTimeMillis()
         val accepted = target.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
-        if (!accepted) notes += "performAction(ACTION_ACCESSIBILITY_FOCUS) devolvió false."
+        if (!accepted) notes += "performAction(ACTION_ACCESSIBILITY_FOCUS) returned false."
         awaitWindow(at)
         val end = SystemClock.elapsedRealtime()
 
         val focused = service.accessibilityFocused()
         val onTarget = sameNode(focused, target, targetSnap)
-        if (!onTarget) notes += "Foco de accesibilidad al final: ${NodeSnapshots.describe(focused) ?: "ninguno"}."
+        if (!onTarget) notes += "Accessibility focus at the end: ${NodeSnapshots.describe(focused) ?: "none"}."
         val window = AnnouncementCorrelator.inWindow(Graph.utterances.snapshot(), at, end)
-        val step = StepRecord(1, "ACTION_ACCESSIBILITY_FOCUS", at, wall, accepted, NodeSnapshots.describe(focused), onTarget, window)
+        val stepRecord = StepRecord(1, "ACTION_ACCESSIBILITY_FOCUS", at, wall, accepted, NodeSnapshots.describe(focused), onTarget, window)
         val shot = screenshot(service, File(dir, "direct_focus.png"), notes)
-        return buildResult(NavigationStrategy.DIRECT_FOCUS, listOf(step), accepted, onTarget, at, end, shot, notes, spec)
+        return buildResult(NavigationStrategy.DIRECT_FOCUS, listOf(stepRecord), accepted, onTarget, at, end, shot, notes, spec)
     }
 
+    /**
+     * Linear Navigation: put focus on the speakable node right before the target (scrolling it into
+     * view first), then inject right swipes until focus lands on the target. It never swipes without a
+     * confirmed starting focus, and stops as soon as focus moves backwards or leaves Chrome.
+     */
     private suspend fun runLinear(
         service: ControllerService,
         captured: NodeSnapshots.Captured,
@@ -239,37 +244,57 @@ class Orchestrator(private val ctx: Context) {
         dir: File,
         spec: RunSpec,
     ): StrategyResult {
-        step("Linear Navigation: preparando…")
+        step("Linear Navigation: preparing…")
         val notes = mutableListOf<String>()
-        val anchorSnap = LinearPlanner.anchorFor(captured.snapshots, targetSnap)
-        val anchor = anchorSnap?.let { captured.nodes[it.path] }
-        if (anchor == null) {
-            notes += "No hay un elemento anterior desde el cual navegar (¿es el primero de la página?)."
+        val steps = mutableListOf<StepRecord>()
+        val anchors = LinearPlanner.anchorsFor(captured.snapshots, targetSnap, MAX_ANCHOR_TRIES)
+        if (anchors.isEmpty()) {
+            notes += "There is no element before the target to start from (is it the first element on the page?)."
             return notRun(NavigationStrategy.LINEAR_NAVIGATION, notes)
         }
-        ensureOnScreen(anchor, notes)
-        clearFocusIfOn(service, anchor)
-        drainSpeech()
 
-        val steps = mutableListOf<StepRecord>()
-        val anchorAt = SystemClock.elapsedRealtime()
-        val anchorWall = System.currentTimeMillis()
-        val anchorOk = anchor.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
-        awaitWindow(anchorAt)
-        steps += StepRecord(
-            0, "ACTION_ACCESSIBILITY_FOCUS (punto de partida)", anchorAt, anchorWall, anchorOk,
-            NodeSnapshots.describe(service.accessibilityFocused()), false,
-            AnnouncementCorrelator.inWindow(Graph.utterances.snapshot(), anchorAt, SystemClock.elapsedRealtime()),
-        )
-        if (!anchorOk) notes += "No se pudo poner el foco en el punto de partida."
+        var anchorSnap: NodeSnapshot? = null
+        for (candidate in anchors) {
+            val node = captured.nodes[candidate.path] ?: continue
+            val label = ElementMatcher.accessibleName(candidate).ifEmpty { candidate.className ?: "?" }
+            step("Linear Navigation: focusing start point \"$label\"")
+            ensureOnScreen(node, notes)
+            clearFocusIfOn(service, node)
+            drainSpeech()
+            val at = SystemClock.elapsedRealtime()
+            val wall = System.currentTimeMillis()
+            val accepted = node.performAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS)
+            awaitWindow(at)
+            val focused = service.accessibilityFocused()
+            val confirmed = accepted && sameNode(focused, node, candidate)
+            steps += StepRecord(
+                0, "ACTION_ACCESSIBILITY_FOCUS (start point \"$label\")", at, wall, accepted,
+                NodeSnapshots.describe(focused), false,
+                AnnouncementCorrelator.inWindow(Graph.utterances.snapshot(), at, SystemClock.elapsedRealtime()),
+            )
+            if (confirmed) {
+                anchorSnap = candidate
+                break
+            }
+            notes += "Could not confirm accessibility focus on start point \"$label\"; trying the previous element."
+        }
+        val start = anchorSnap
+        if (start == null) {
+            notes += "Linear Navigation was NOT attempted: swiping without a confirmed starting focus would begin at the top of the page."
+            val shot = screenshot(service, File(dir, "linear_navigation.png"), notes)
+            val now = SystemClock.elapsedRealtime()
+            return buildResult(NavigationStrategy.LINEAR_NAVIGATION, steps, false, false, now, now, shot, notes, spec)
+        }
 
+        val maxSteps = (LinearPlanner.stepsBetween(captured.snapshots, start, targetSnap) + EXTRA_STEPS).coerceIn(2, MAX_LINEAR_STEPS)
         var reached = false
         var gestureOk = true
-        var lastAt = anchorAt
-        var lastEnd = SystemClock.elapsedRealtime()
-        for (i in 1..MAX_LINEAR_STEPS) {
+        var prevOrder = start.order
+        var lastAt = SystemClock.elapsedRealtime()
+        var lastEnd = lastAt
+        for (i in 1..maxSteps) {
             val before = service.accessibilityFocused()
-            step("Linear Navigation: swipe → ($i/$MAX_LINEAR_STEPS)")
+            step("Linear Navigation: swipe right ($i/$maxSteps)")
             val at = SystemClock.elapsedRealtime()
             val wall = System.currentTimeMillis()
             val ok = service.swipeHorizontal(toTheRight = true)
@@ -278,13 +303,13 @@ class Orchestrator(private val ctx: Context) {
             val after = service.accessibilityFocused()
             val onTarget = sameNode(after, target, targetSnap)
             steps += StepRecord(
-                i, "dispatchGesture swipe →", at, wall, ok, NodeSnapshots.describe(after), onTarget,
+                i, "dispatchGesture swipe right", at, wall, ok, NodeSnapshots.describe(after), onTarget,
                 AnnouncementCorrelator.inWindow(Graph.utterances.snapshot(), at, end),
             )
             lastAt = at
             lastEnd = end
             if (!ok) {
-                notes += "El sistema canceló el gesto inyectado (paso $i)."
+                notes += "The system cancelled the injected gesture (step $i)."
                 gestureOk = false
                 break
             }
@@ -293,13 +318,22 @@ class Orchestrator(private val ctx: Context) {
                 break
             }
             if (after == null || after == before) {
-                notes += "El swipe inyectado no movió el foco de accesibilidad (paso $i): " +
-                    "TalkBack no parece interpretar gestos de dispatchGesture en este dispositivo."
+                notes += "The injected swipe did not move accessibility focus (step $i); TalkBack may not interpret dispatchGesture swipes on this device."
                 break
             }
+            if (after.packageName?.toString() != ControllerService.CHROME) {
+                notes += "Focus left Chrome (now in ${after.packageName}) at step $i; stopped."
+                break
+            }
+            val order = orderOf(after, captured.snapshots)
+            if (order != null && order < prevOrder) {
+                notes += "Focus moved backwards (to \"${NodeSnapshots.describe(after)}\") at step $i; stopped."
+                break
+            }
+            if (order != null) prevOrder = order
         }
-        if (!reached && gestureOk && steps.size > MAX_LINEAR_STEPS) {
-            notes += "No se llegó al elemento en $MAX_LINEAR_STEPS swipes."
+        if (!reached && gestureOk && notes.none { it.contains("step") }) {
+            notes += "Did not reach the target within $maxSteps swipes."
         }
         val shot = screenshot(service, File(dir, "linear_navigation.png"), notes)
         return buildResult(NavigationStrategy.LINEAR_NAVIGATION, steps, gestureOk && reached, reached, lastAt, lastEnd, shot, notes, spec)
@@ -316,17 +350,17 @@ class Orchestrator(private val ctx: Context) {
         notes: List<String>,
         spec: RunSpec,
     ): StrategyResult {
-        val window = steps.last().utterances
+        val window = steps.lastOrNull()?.utterances ?: emptyList()
         // Non-TalkBack utterances are kept as evidence but never mixed into the announcement.
         val (talkBack, other) = window.partition(Utterance::isFromTalkBack)
         val status = ResultAssembler.strategyStatus(actionAccepted, reachedTarget, talkBack.size)
         val concatenated = AnnouncementCorrelator.concatenate(talkBack)
         val allNotes = notes.toMutableList()
         if (talkBack.any { it.status == SynthesisStatus.INTERRUPTED }) {
-            allNotes += "Al menos un fragmento fue interrumpido antes de terminar su síntesis (ver estado de cada fragmento)."
+            allNotes += "At least one fragment was interrupted before its synthesis finished (see each fragment's status)."
         }
         if (talkBack.any { !it.isFinal }) {
-            allNotes += "Algún fragmento seguía sintetizándose al cerrar la ventana de captura."
+            allNotes += "A fragment was still being synthesized when the capture window closed."
         }
         return StrategyResult(
             strategy = strategy,
@@ -388,7 +422,7 @@ class Orchestrator(private val ctx: Context) {
         node.refresh()
         if (!node.isVisibleToUser) {
             val ok = node.performAction(AccessibilityAction.ACTION_SHOW_ON_SCREEN.id)
-            notes += "El elemento estaba fuera de pantalla; ACTION_SHOW_ON_SCREEN=$ok."
+            notes += "An element was off screen; ACTION_SHOW_ON_SCREEN=$ok."
             delay(800)
             node.refresh()
         }
@@ -432,9 +466,16 @@ class Orchestrator(private val ctx: Context) {
             ElementMatcher.accessibleName(f) == ElementMatcher.accessibleName(targetSnap)
     }
 
+    /** Document-order index of the focused node, if it can be matched to the snapshot taken before navigating. */
+    private fun orderOf(focused: AccessibilityNodeInfo, snaps: List<NodeSnapshot>): Int? {
+        val f = NodeSnapshots.snapshot(focused, "", 0)
+        val name = ElementMatcher.accessibleName(f)
+        return snaps.firstOrNull { it.bounds == f.bounds && ElementMatcher.accessibleName(it) == name }?.order
+    }
+
     private suspend fun screenshot(service: ControllerService, file: File, notes: MutableList<String>): String? {
         val error = service.screenshot(file)
-        if (error != null) notes += "Screenshot no disponible: $error"
+        if (error != null) notes += "Screenshot unavailable: $error"
         delay(1100) // takeScreenshot is rate-limited to about one per second
         return if (error == null) file.absolutePath else null
     }
@@ -452,6 +493,8 @@ class Orchestrator(private val ctx: Context) {
         const val TAG = "Orchestrator"
         const val PAGE_TIMEOUT_MS = 25_000L
         const val MAX_SCROLLS = 8
-        const val MAX_LINEAR_STEPS = 6
+        const val MAX_ANCHOR_TRIES = 3
+        const val EXTRA_STEPS = 3
+        const val MAX_LINEAR_STEPS = 12
     }
 }

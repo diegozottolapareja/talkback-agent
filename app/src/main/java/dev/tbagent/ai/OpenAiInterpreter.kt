@@ -25,9 +25,9 @@ class OpenAiInterpreter(private val apiKey: String, private val model: String) {
         val reply = try {
             call(instruction, url)
         } catch (e: ApiException) {
-            return@withContext Interpretation.NeedsClarification(e.message ?: "Error al llamar a OpenAI.")
+            return@withContext Interpretation.NeedsClarification(e.message ?: "Error calling OpenAI.")
         } catch (e: Exception) {
-            return@withContext Interpretation.NeedsClarification("No se pudo contactar a OpenAI: ${e.javaClass.simpleName}.")
+            return@withContext Interpretation.NeedsClarification("Could not reach OpenAI: ${e.javaClass.simpleName}.")
         }
         parse(reply, url, instruction)
     }
@@ -61,10 +61,10 @@ class OpenAiInterpreter(private val apiKey: String, private val model: String) {
                 val msg = runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrNull()
                 throw ApiException(
                     when (code) {
-                        401 -> "OpenAI rechazó la clave (401). Revisala en Setup."
-                        404 -> "El modelo \"$model\" no existe o no tenés acceso (404). Cambialo en Setup."
-                        429 -> "OpenAI respondió 429: sin cuota o demasiadas solicitudes. ${msg.orEmpty()}"
-                        else -> "OpenAI respondió $code. ${msg.orEmpty()}"
+                        401 -> "OpenAI rejected the key (401). Check it in Setup."
+                        404 -> "Model \"$model\" does not exist or you have no access (404). Change it in Setup."
+                        429 -> "OpenAI answered 429: no quota or too many requests. ${msg.orEmpty()}"
+                        else -> "OpenAI answered $code. ${msg.orEmpty()}"
                     },
                 )
             }
@@ -76,14 +76,14 @@ class OpenAiInterpreter(private val apiKey: String, private val model: String) {
 
     internal fun parse(reply: String, urlField: String?, instruction: String): Interpretation {
         val o = runCatching { JSONObject(reply) }.getOrNull()
-            ?: return Interpretation.NeedsClarification("La respuesta de la IA no fue JSON válido.")
+            ?: return Interpretation.NeedsClarification("The AI reply was not valid JSON.")
         o.optString("clarification").takeIf { it.isNotBlank() && it != "null" }?.let {
             return Interpretation.NeedsClarification(it)
         }
         val url = RuleBasedInterpreter.normalizeUrl(urlField?.takeIf { it.isNotBlank() } ?: o.optString("url"))
-            ?: return Interpretation.NeedsClarification("Falta la URL.")
+            ?: return Interpretation.NeedsClarification("Missing URL.")
         val name = o.optString("target_name").trim()
-        if (name.isEmpty() || name == "null") return Interpretation.NeedsClarification("No pude identificar el elemento.")
+        if (name.isEmpty() || name == "null") return Interpretation.NeedsClarification("Could not identify the element.")
         val role = o.optString("role").takeIf { it.isNotBlank() && it != "null" }
             ?.let { r -> runCatching { Role.valueOf(r.uppercase()) }.getOrNull() }
         val strategies = (o.optJSONArray("strategies") ?: JSONArray())
@@ -97,7 +97,7 @@ class OpenAiInterpreter(private val apiKey: String, private val model: String) {
         }
         return Interpretation.Ok(
             RunSpec(url, TargetQuery(name, role), strategies, expected, instruction = instruction),
-            listOf("Interpretado con IA ($model)."),
+            listOf("Interpreted with AI ($model)."),
         )
     }
 

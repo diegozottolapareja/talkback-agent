@@ -21,7 +21,7 @@ class RuleBasedInterpreter : InstructionInterpreter {
 
         val urlInText = URL_REGEX.find(text)
         val resolvedUrl = normalizeUrl(url?.takeIf { it.isNotBlank() } ?: urlInText?.value)
-            ?: return Interpretation.NeedsClarification("Falta la URL. Escribila en el campo URL o dentro de la instrucción.")
+            ?: return Interpretation.NeedsClarification("Missing URL. Enter it in the URL field or inside the instruction.")
         if (urlInText != null) text = text.removeRange(urlInText.range)
 
         val (expectation, withoutExpectation) = extractExpectation(text)
@@ -29,12 +29,12 @@ class RuleBasedInterpreter : InstructionInterpreter {
 
         val target = extractTarget(text)
             ?: return Interpretation.NeedsClarification(
-                "No pude identificar el elemento. Escribí su nombre, por ejemplo: Find \"Primary Address\".",
+                "Could not identify the element. Write its name, for example: Find \"Primary Address\".",
             )
 
         val notes = mutableListOf<String>()
         val strategies = extractStrategies(instruction)
-        if (strategies.size == 1) notes += "Estrategia pedida explícitamente: ${strategies.first()}"
+        if (strategies.size == 1) notes += "Strategy requested explicitly: ${strategies.first()}"
 
         return Interpretation.Ok(
             RunSpec(

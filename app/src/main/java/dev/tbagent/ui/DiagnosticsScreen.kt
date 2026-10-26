@@ -42,7 +42,7 @@ private sealed interface TimelineItem {
     data class Event(val e: A11yEventRecord) : TimelineItem { override val at get() = e.atElapsed }
 }
 
-/** Milestone 1: manual proof that TalkBack's speech reaches our engine. */
+/** Manual proof that TalkBack's speech reaches our engine. */
 @Composable
 fun DiagnosticsScreen() {
     val ctx = LocalContext.current
@@ -65,7 +65,7 @@ fun DiagnosticsScreen() {
     // Client bound explicitly to OUR engine, used for the self-test.
     var selfTts by remember { mutableStateOf<TextToSpeech?>(null) }
     DisposableEffect(Unit) {
-        val t = TextToSpeech(ctx, { s -> selfTestMessage = if (s == TextToSpeech.SUCCESS) null else "No se pudo conectar con el motor propio (código $s)." }, ctx.packageName)
+        val t = TextToSpeech(ctx, { s -> selfTestMessage = if (s == TextToSpeech.SUCCESS) null else "Could not connect to our own engine (code $s)." }, ctx.packageName)
         selfTts = t
         onDispose { t.shutdown() }
     }
@@ -78,61 +78,60 @@ fun DiagnosticsScreen() {
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         item {
-            Section("Milestone 1 — prueba manual del motor de captura") {
+            Section("Capture engine check") {
                 Text(
-                    "1) Setup: seleccioná \"TalkBack Capture (TTS)\" como motor preferido.\n" +
-                        "2) Activá TalkBack.\n" +
-                        "3) Abrí Chrome y navegá con swipes por una página.\n" +
-                        "4) Volvé acá: cada texto que TalkBack mandó a sintetizar aparece abajo como TTS · TalkBack.\n" +
-                        "5) Compará con lo que escuchaste (eco) o con TalkBack → Ajustes de desarrollador → \"Mostrar salida de voz\".",
+                    "1) In Setup, select \"TalkBack Capture (TTS)\" as the preferred engine.\n" +
+                        "2) Turn TalkBack on.\n" +
+                        "3) Open Chrome and swipe through a page.\n" +
+                        "4) Come back here: every text TalkBack sent to be synthesized shows up below as TalkBack.\n" +
+                        "5) Compare with what you heard (echo) or with TalkBack → Developer settings → \"Display speech output\".",
                 )
                 val s = status
                 if (s != null) {
-                    KeyValue("Motor TTS preferido", (s.defaultEngine ?: "desconocido") + if (s.ourEngineSelected) " ✓" else " ✗ (no es el nuestro)")
-                    KeyValue("TalkBack activo", if (s.talkBackEnabled) "sí (${s.talkBackPackage})" else "no")
-                    KeyValue("Textos recibidos de TalkBack", s.talkBackUtterances.toString())
-                    KeyValue("Eco audible por", s.echoEngine ?: "ningún motor encontrado")
+                    KeyValue("Preferred TTS engine", (s.defaultEngine ?: "unknown") + if (s.ourEngineSelected) " ✓" else " ✗ (not ours)")
+                    KeyValue("TalkBack on", if (s.talkBackEnabled) "yes (${s.talkBackPackage})" else "no")
+                    KeyValue("Texts received from TalkBack", s.talkBackUtterances.toString())
+                    KeyValue("Audible echo through", s.echoEngine ?: "no engine found")
                 }
             }
         }
         item {
-            Section("Opciones del motor") {
+            Section("Engine options") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = echo, onCheckedChange = { echo = it; Graph.settings.echoEnabled = it })
-                    Text("  Eco audible (repite el texto con el motor de Samsung/Google)")
+                    Text("  Audible echo (repeats the text with the Samsung/Google engine)")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = fast, onCheckedChange = { fast = it; Graph.settings.fastMode = it })
-                    Text("  Modo rápido (sin audio simulado; no detecta interrupciones)")
+                    Text("  Fast mode (no simulated audio; cannot detect interruptions)")
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Switch(checked = validated, onCheckedChange = { validated = it; Graph.settings.captureValidated = it })
-                    Text("  Validé que el texto capturado coincide con lo que dijo TalkBack")
+                    Text("  I checked that the captured text matches what TalkBack said")
                 }
-                Text(
-                    "Sin esta validación, las ejecuciones automáticas devuelven INCONCLUSIVE aunque muestren el texto capturado.",
-                )
+                Text("Until this is on, automatic runs report INCONCLUSIVE even though they show the captured text.")
             }
         }
         item {
-            Section("Acciones") {
+            Section("Actions") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
-                        val r = selfTts?.speak("Prueba del motor de captura", TextToSpeech.QUEUE_FLUSH, null, "selftest")
-                        selfTestMessage = if (r == TextToSpeech.SUCCESS) "Enviado: debería aparecer como \"esta app\"." else "speak() devolvió $r"
+                        val r = selfTts?.speak("Capture engine self test", TextToSpeech.QUEUE_FLUSH, null, "selftest")
+                        selfTestMessage = if (r == TextToSpeech.SUCCESS) "Sent: it should show up as \"this app\"." else "speak() returned $r"
                     }) { Text("Self-test") }
-                    OutlinedButton(onClick = { shareText(ctx, "TalkBack capture log", exportLog(ctx.packageName)) }) { Text("Compartir log") }
+                    OutlinedButton(onClick = { Graph.utterances.clear(); Graph.events.clear() }) { Text("Clear") }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { Graph.utterances.clear(); Graph.events.clear() }) { Text("Borrar") }
-                    OutlinedButton(onClick = { showEvents = !showEvents }) {
-                        Text(if (showEvents) "Ocultar eventos de foco" else "Mostrar eventos de foco")
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    OutlinedButton(onClick = { shareFile(ctx, "talkback-capture-log.json", exportLog(ctx.packageName)) }) { Text("Share log") }
+                    OutlinedButton(onClick = { copyToClipboard(ctx, "capture log", exportLog(ctx.packageName)) }) { Text("Copy log") }
+                }
+                OutlinedButton(onClick = { showEvents = !showEvents }, modifier = Modifier.padding(top = 4.dp)) {
+                    Text(if (showEvents) "Hide focus events" else "Show focus events")
                 }
                 selfTestMessage?.let { Text(it) }
             }
         }
-        item { Text("Línea de tiempo (más reciente primero)", Modifier.padding(vertical = 8.dp)) }
+        item { Text("Timeline (newest first)", Modifier.padding(vertical = 8.dp)) }
         items(timeline, key = { if (it is TimelineItem.Tts) "t${it.u.id}" else "e${(it as TimelineItem.Event).e.id}" }) { item ->
             when (item) {
                 is TimelineItem.Tts -> UtteranceRow(item.u, ctx.packageName)

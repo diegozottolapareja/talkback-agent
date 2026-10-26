@@ -2,6 +2,8 @@ name: TalkBack Agent APK
 
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -34,6 +36,7 @@ jobs:
       # Stable download link for the phone:
       # https://github.com/<owner>/<repo>/releases/download/talkback-agent-latest/talkback-agent-debug.apk
       - name: Publish to rolling pre-release
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: talkback-agent-latest
@@ -41,4 +44,17 @@ jobs:
           prerelease: true
           make_latest: false
           body: "Debug build ${{ github.run_number }} from ${{ github.ref_name }} @ ${{ github.sha }}"
+          files: talkback-agent-debug.apk
+
+      # Versioned release, created when a tag like v0.1.0 is pushed.
+      - name: Publish versioned release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          name: TalkBack Agent ${{ github.ref_name }}
+          make_latest: true
+          generate_release_notes: true
+          body: |
+            Debug APK (signed with the repo's debug key, so it installs over previous builds).
+            Test the capture channel first (Diagnóstico tab): see README.
           files: talkback-agent-debug.apk

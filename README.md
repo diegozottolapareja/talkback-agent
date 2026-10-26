@@ -1,6 +1,6 @@
 # TalkBack Agent (Android)
 
-Herramienta on-device que abre una URL en Chrome, ubica un elemento, mueve el foco de TalkBack hasta él y muestra **el texto que TalkBack envió al motor de voz**. La arquitectura está en [`docs/talkback-agent-technical-review.md`](../docs/talkback-agent-technical-review.md).
+Herramienta on-device que abre una URL en Chrome, ubica un elemento, mueve el foco de TalkBack hasta él y muestra **el texto que TalkBack envió al motor de voz**. La arquitectura está en [`docs/talkback-agent-technical-review.md`](docs/talkback-agent-technical-review.md).
 
 > Estado: el código compila y los tests unitarios pasan. **Todavía no se probó nada sobre TalkBack en un dispositivo real.** La validación del canal de captura (Milestone 1) la tenés que hacer vos en el Galaxy S23, siguiendo las instrucciones de abajo.
 

@@ -10,7 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import dev.tbagent.Graph
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +75,8 @@ fun SetupScreen() {
         }
         Check("4. Chrome instalado", st.chromeInstalled, st.chromeVersion ?: "Instalá Google Chrome desde Play Store.") {}
 
+        AiSection()
+
         Section("Al terminar las pruebas") {
             Text(
                 "Volvé a seleccionar el motor de Samsung o Google como preferido. Mientras \"TalkBack Capture\" esté " +
@@ -98,4 +107,37 @@ private fun open(ctx: Context, intent: Intent): Boolean = try {
     true
 } catch (_: ActivityNotFoundException) {
     false
+}
+
+@Composable
+private fun AiSection() {
+    var key by remember { mutableStateOf(Graph.settings.openAiKey) }
+    var model by remember { mutableStateOf(Graph.settings.openAiModel) }
+    var use by remember { mutableStateOf(Graph.settings.useAi) }
+    Section("IA (OpenAI) para interpretar instrucciones") {
+        Text(
+            "La clave se escribe acá, queda solo en este teléfono y nunca se sube al repositorio. " +
+                "Poné un límite de gasto en tu cuenta de OpenAI.",
+        )
+        OutlinedTextField(
+            value = key,
+            onValueChange = { key = it; Graph.settings.openAiKey = it },
+            label = { Text("OpenAI API key") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            value = model,
+            onValueChange = { model = it; Graph.settings.openAiModel = it },
+            label = { Text("Modelo") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Switch(checked = use, onCheckedChange = { use = it; Graph.settings.useAi = it })
+            Text("  Usar IA al tocar Run")
+        }
+    }
 }

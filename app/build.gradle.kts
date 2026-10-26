@@ -13,7 +13,8 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.tbagent"
+        // Keeps the id of the variant that was installed on the test phone, so updates install over it.
+        applicationId = "dev.tbagent.noqap"
         minSdk = 30
         targetSdk = 34
         versionCode = buildNumber
@@ -28,24 +29,6 @@ android {
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
-        }
-    }
-
-    // Flavors exist to find out which manifest declaration makes Play Protect block the sideload.
-    flavorDimensions += "variant"
-    productFlavors {
-        create("full") { dimension = "variant" }
-        create("noA11y") {
-            dimension = "variant"
-            applicationIdSuffix = ".noa11y"
-        }
-        create("noQap") {
-            dimension = "variant"
-            applicationIdSuffix = ".noqap"
-        }
-        create("minimal") {
-            dimension = "variant"
-            applicationIdSuffix = ".minimal"
         }
     }
 

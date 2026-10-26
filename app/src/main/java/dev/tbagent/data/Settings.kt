@@ -38,6 +38,19 @@ class Settings(context: Context) {
         get() = p.getString("last_instruction", "") ?: ""
         set(v) = p.edit().putString("last_instruction", v).apply()
 
+    /** OpenAI key typed on the phone. Stored in app-private storage; never logged or exported. */
+    var openAiKey: String
+        get() = p.getString("openai_key", "") ?: ""
+        set(v) = p.edit().putString("openai_key", v.trim()).apply()
+
+    var openAiModel: String
+        get() = p.getString("openai_model", "gpt-4o-mini") ?: "gpt-4o-mini"
+        set(v) = p.edit().putString("openai_model", v.trim()).apply()
+
+    var useAi: Boolean
+        get() = p.getBoolean("use_ai", false)
+        set(v) = p.edit().putBoolean("use_ai", v).apply()
+
     fun plannedAudioMs(textLength: Int): Long =
         if (fastMode) 0 else (textLength.toLong() * msPerChar).coerceIn(250, 15_000)
 }

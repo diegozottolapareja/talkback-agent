@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Personal sideloaded tool: needed to resolve which app (TalkBack) called our TTS engine
-         and to read TalkBack / Chrome / TTS engine versions for the evidence report. -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <intent>

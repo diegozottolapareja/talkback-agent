@@ -19,6 +19,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import dev.tbagent.ai.OpenAiInterpreter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +53,9 @@ fun RunScreen() {
     val log by Graph.orchestrator.log.collectAsState()
     val interpretation = remember(url, instruction) { Graph.interpreter.interpret(instruction, url) }
     val running = state is RunState.Running
+    val scope = rememberCoroutineScope()
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiMessage by remember { mutableStateOf<String?>(null) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         OutlinedTextField(
@@ -87,16 +93,33 @@ fun RunScreen() {
 
         Row(Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                enabled = interpretation is Interpretation.Ok && !running,
+                enabled = !running && !aiBusy &&
+                    (interpretation is Interpretation.Ok || (Graph.settings.useAi && instruction.isNotBlank())),
                 onClick = {
                     Graph.settings.lastUrl = url
                     Graph.settings.lastInstruction = instruction
-                    (interpretation as? Interpretation.Ok)?.let { Graph.orchestrator.start(it.spec) }
+                    aiMessage = null
+                    val s = Graph.settings
+                    if (s.useAi && s.openAiKey.isNotBlank()) {
+                        aiBusy = true
+                        scope.launch {
+                            val r = OpenAiInterpreter(s.openAiKey, s.openAiModel).interpret(instruction, url)
+                            aiBusy = false
+                            when (r) {
+                                is Interpretation.Ok -> Graph.orchestrator.start(r.spec)
+                                is Interpretation.NeedsClarification -> aiMessage = r.message
+                            }
+                        }
+                    } else {
+                        if (s.useAi) aiMessage = "Falta la clave de OpenAI (Setup). Uso el intérprete por reglas."
+                        (interpretation as? Interpretation.Ok)?.let { Graph.orchestrator.start(it.spec) }
+                    }
                 },
-            ) { Text("Run") }
+            ) { Text(if (aiBusy) "Interpretando…" else "Run") }
             if (running) OutlinedButton(onClick = { Graph.orchestrator.cancel() }) { Text("Cancelar") }
         }
 
+        aiMessage?.let { Text(it, color = Warn, modifier = Modifier.padding(bottom = 6.dp)) }
         when (val s = state) {
             RunState.Idle -> Text(
                 "Requisitos: Setup completo (motor TTS + servicio + TalkBack). Al tocar Run se abre Chrome; " +

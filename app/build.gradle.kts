@@ -31,6 +31,24 @@ android {
         }
     }
 
+    // Flavors exist to find out which manifest declaration makes Play Protect block the sideload.
+    flavorDimensions += "variant"
+    productFlavors {
+        create("full") { dimension = "variant" }
+        create("noA11y") {
+            dimension = "variant"
+            applicationIdSuffix = ".noa11y"
+        }
+        create("noQap") {
+            dimension = "variant"
+            applicationIdSuffix = ".noqap"
+        }
+        create("minimal") {
+            dimension = "variant"
+            applicationIdSuffix = ".minimal"
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")

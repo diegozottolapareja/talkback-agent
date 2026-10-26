@@ -26,11 +26,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests (core) and debug APK
-        run: ./gradlew --no-daemon :core:test :app:assembleDebug :probe:assembleDebug --stacktrace
+        run: ./gradlew --no-daemon :core:test :app:assembleFullDebug :app:assembleNoA11yDebug :app:assembleNoQapDebug :app:assembleMinimalDebug :probe:assembleDebug --stacktrace
 
       - name: Rename APKs
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk talkback-agent-debug.apk
+          cp app/build/outputs/apk/full/debug/app-full-debug.apk talkback-agent-debug.apk
+          cp app/build/outputs/apk/noA11y/debug/app-noA11y-debug.apk variant-noa11y.apk
+          cp app/build/outputs/apk/noQap/debug/app-noQap-debug.apk variant-noqap.apk
+          cp app/build/outputs/apk/minimal/debug/app-minimal-debug.apk variant-minimal.apk
           cp probe/build/outputs/apk/debug/probe-debug.apk install-probe.apk
 
       - uses: actions/upload-artifact@v4
@@ -39,6 +42,9 @@ jobs:
           path: |
             talkback-agent-debug.apk
             install-probe.apk
+            variant-noa11y.apk
+            variant-noqap.apk
+            variant-minimal.apk
 
       # Stable download link for the phone:
       # https://github.com/<owner>/<repo>/releases/download/talkback-agent-latest/talkback-agent-debug.apk
@@ -54,6 +60,9 @@ jobs:
           files: |
             talkback-agent-debug.apk
             install-probe.apk
+            variant-noa11y.apk
+            variant-noqap.apk
+            variant-minimal.apk
 
       # Versioned release, created when the workflow is run manually with a version.
       - name: Publish versioned release
@@ -71,3 +80,6 @@ jobs:
           files: |
             talkback-agent-debug.apk
             install-probe.apk
+            variant-noa11y.apk
+            variant-noqap.apk
+            variant-minimal.apk

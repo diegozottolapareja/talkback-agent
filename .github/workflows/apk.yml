@@ -3,8 +3,11 @@ name: TalkBack Agent APK
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Tag for a versioned release (e.g. v0.1.0). Leave empty for a plain build."
+        required: false
 
 permissions:
   contents: write
@@ -36,7 +39,7 @@ jobs:
       # Stable download link for the phone:
       # https://github.com/<owner>/<repo>/releases/download/talkback-agent-latest/talkback-agent-debug.apk
       - name: Publish to rolling pre-release
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.version == '' || inputs.version == null }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: talkback-agent-latest
@@ -46,12 +49,14 @@ jobs:
           body: "Debug build ${{ github.run_number }} from ${{ github.ref_name }} @ ${{ github.sha }}"
           files: talkback-agent-debug.apk
 
-      # Versioned release, created when a tag like v0.1.0 is pushed.
+      # Versioned release, created when the workflow is run manually with a version.
       - name: Publish versioned release
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ inputs.version != '' && inputs.version != null }}
         uses: softprops/action-gh-release@v2
         with:
-          name: TalkBack Agent ${{ github.ref_name }}
+          tag_name: ${{ inputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: TalkBack Agent ${{ inputs.version }}
           make_latest: true
           generate_release_notes: true
           body: |

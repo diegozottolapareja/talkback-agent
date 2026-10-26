@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TalkBack Agent</string>
+    <string name="tts_engine_label">TalkBack Capture (TTS)</string>
+    <string name="a11y_service_label">TalkBack Agent Controller</string>
+    <string name="a11y_description">Opens pages in Chrome, finds elements and moves accessibility focus so TalkBack announces them. Records focus events. Does not take over touch exploration.</string>
+</resources>
